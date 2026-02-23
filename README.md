@@ -1,17 +1,15 @@
-# Intelligent Alert Escalation & Resolution System
+# Alert Lifecycle Manager
 
 ## Overview
 
-This project implements a rule-driven alert management system designed
-to simulate real-world operational monitoring scenarios such as
-overspeed events, compliance validation, and negative feedback tracking.
+This project implements a rule-driven alert lifecycle management system
+that handles creation, escalation, resolution, and automated closure of
+operational alerts.
 
-The system supports automatic escalation, scheduled auto-closure, and
-provides a dashboard for monitoring alert behavior over time. All alert
-transitions are recorded to maintain traceability and auditability.
-
-The focus of this project is clarity of business logic, configurability,
-and structured backend design.
+The system is designed to simulate real-world operational monitoring
+scenarios such as overspeed events, compliance validation, and negative
+feedback tracking. It focuses on clear rule evaluation, lifecycle
+tracking, background processing, and analytical visualization.
 
 ------------------------------------------------------------------------
 
@@ -22,197 +20,183 @@ and structured backend design.
 -   Node.js (ES Modules)
 -   Express
 -   MongoDB (Mongoose)
--   Redis (for caching dashboard aggregates)
--   node-cron (scheduled auto-close processing)
+-   Redis (caching for dashboard aggregates)
+-   node-cron (scheduled auto-close job)
 
 ### Frontend
 
 -   React
--   Chart.js (trend visualization)
+-   Chart.js
 -   Axios
 
 ------------------------------------------------------------------------
 
-## Core Features
+## Core Capabilities
 
-### 1. Alert Creation
+### Alert Lifecycle Handling
 
-Alerts can be created with: - `sourceType` - `severity` - `driverId` -
-`metadata`
+Alerts move through the following states:
 
-New alerts start in `OPEN` state.
+OPEN → ESCALATED → AUTO_CLOSED / RESOLVED
 
-------------------------------------------------------------------------
+All state transitions are recorded in alert history for auditability.
 
-### 2. Escalation Engine
+### Escalation Engine
 
-Escalation rules are defined in `rules.json`.
+Escalation is triggered when: - Alerts of the same `driverId` and
+`sourceType` - Within a configured time window - Reach the defined
+threshold
 
-An alert escalates when: - The number of alerts for the same `driverId`
-and `sourceType` - Within a defined time window - Meets or exceeds the
-configured threshold
+Escalated alerts: - Change status to `ESCALATED` - Upgrade severity to
+`CRITICAL` - Record transition history
 
-When escalated: - Status becomes `ESCALATED` - Severity is upgraded to
-`CRITICAL` - Transition is recorded in alert history
+### Auto-Close Engine
 
-------------------------------------------------------------------------
+A scheduled background job evaluates alerts periodically.
 
-### 3. Auto-Close Engine
-
-A scheduled background job runs using `node-cron`.
-
-Alerts auto-close based on: - Compliance condition (e.g.,
+Auto-close conditions: - Compliance rule (e.g.,
 `document_valid = true`) - Expiry window (e.g., auto-close after
-configured minutes)
+configured duration)
 
-All transitions are appended to alert history for auditability.
+### Dashboard Features
 
-------------------------------------------------------------------------
-
-### 4. Dashboard Capabilities
-
-The dashboard provides:
-
--   Severity summary of active alerts
+-   Severity summary
 -   Top drivers by active alerts
--   Trend over time:
-    -   Total alerts
-    -   Escalations
-    -   Auto-closures
+-   Trend over time (Total, Escalated, Auto-Closed)
 -   Recent auto-closed alerts
--   Alert drill-down (history + metadata view)
+-   Alert drill-down (history + metadata)
 -   Active rule configuration overview
 
 ------------------------------------------------------------------------
 
-### 5. Caching Strategy
+## Architecture Overview
 
-Redis is used to cache: - Severity summary - Top drivers
+The backend follows a layered structure:
 
-The system gracefully falls back to database queries if Redis is
-unavailable.
+Controllers → Services → Models
 
-------------------------------------------------------------------------
-
-## Project Structure
-
-    intelligent-alert-system
-    │
-    ├── src
-    │   ├── config
-    │   ├── controllers
-    │   ├── services
-    │   ├── models
-    │   ├── jobs
-    │   └── utils
-    │
-    ├── client
-    │   ├── public
-    │   └── src
-    │
-    └── README.md
-
-Backend follows a service-layer architecture to separate request
-handling from business logic.
+-   Controllers manage request/response flow.
+-   Services contain business logic (rule evaluation, escalation,
+    auto-close).
+-   Models define schema and lifecycle tracking.
+-   Redis is used selectively for aggregation-heavy endpoints.
 
 ------------------------------------------------------------------------
 
-## Rule Configuration
+## Caching Strategy
 
-Rules are defined in:
+Redis caches: - Severity summary - Top drivers
 
-    src/config/rules.json
+Cache invalidation occurs whenever alert state changes.
 
-Example:
+This reduces MongoDB aggregation overhead while maintaining consistency.
 
-``` json
-{
-  "overspeed": {
-    "escalate_if_count": 3,
-    "window_mins": 60,
-    "expire_after_mins": 1440
-  }
-}
-```
+------------------------------------------------------------------------
 
-This allows threshold tuning without modifying core logic.
+## Time Complexity Analysis
+
+### Alert Creation
+
+-   O(1) document insert
+-   Escalation check: O(log n) due to indexed MongoDB query on driverId,
+    sourceType, and createdAt
+
+### Escalation Evaluation
+
+-   Uses indexed count query within time window
+-   Complexity: O(log n)
+
+### Auto-Close Job
+
+-   Iterates over active alerts
+-   Complexity: O(m) where m = number of OPEN + ESCALATED alerts
+
+### Dashboard Aggregations
+
+-   MongoDB aggregation pipeline: O(n)
+-   Optimized with Redis caching
+
+------------------------------------------------------------------------
+
+## Design Trade-offs
+
+1.  Cron-Based Processing vs Event-Driven\
+    Used cron for simplicity and clarity.\
+    Trade-off: Slight delay between condition satisfaction and state
+    transition.
+
+2.  Redis Caching Scope\
+    Cached only aggregation-heavy endpoints to simplify invalidation
+    logic.
+
+3.  JSON-Based Rule Configuration\
+    Externalized rules for flexibility.\
+    Trade-off: Requires consistent sourceType naming.
+
+4.  Sequential Dashboard API Calls\
+    Chosen for simplicity and readability.\
+    Trade-off: Slight performance cost compared to Promise.all batching.
+
+------------------------------------------------------------------------
+
+## Scalability Considerations
+
+For larger datasets, the following improvements could be applied:
+
+-   Introduce message queues for event-driven processing
+-   Add compound indexing for escalation queries
+-   Batch auto-close processing
+-   Paginate alert drill-down views
+-   Implement authentication and role-based access control
 
 ------------------------------------------------------------------------
 
 ## How to Run
 
-### Backend Setup
+### Backend
 
-Create a `.env` file in root:
+Create `.env` in root:
 
-    PORT=5000
-    MONGO_URI=your_mongodb_connection_string
-    REDIS_HOST=your_redis_host
-    REDIS_PORT=your_redis_port
-    REDIS_PASSWORD=your_redis_password
+PORT=5000\
+MONGO_URI=your_mongodb_connection_string\
+REDIS_HOST=your_redis_host\
+REDIS_PORT=your_redis_port\
+REDIS_PASSWORD=your_redis_password
 
 Install dependencies:
 
-    npm install
+npm install
 
-Run backend:
+Run:
 
-    npm run dev
-
-Backend runs at:
-
-    http://localhost:5000
+npm run dev
 
 ------------------------------------------------------------------------
 
-### Frontend Setup
+### Frontend
 
-    cd client
-    npm install
-    npm start
-
-Frontend runs at:
-
-    http://localhost:3000
+cd client\
+npm install\
+npm start
 
 ------------------------------------------------------------------------
 
 ## API Endpoints
 
--   `POST /api/v1/alerts`
--   `GET /api/v1/alerts/:alertId`
--   `PATCH /api/v1/alerts/:alertId/resolve`
--   `GET /api/v1/dashboard/summary`
--   `GET /api/v1/dashboard/top-drivers`
--   `GET /api/v1/dashboard/trends`
--   `GET /api/v1/dashboard/recent-auto-closed`
--   `GET /api/v1/dashboard/rules`
+POST /api/v1/alerts\
+GET /api/v1/alerts/:alertId\
+PATCH /api/v1/alerts/:alertId/resolve
 
-------------------------------------------------------------------------
-
-## Design Considerations
-
--   Rule evaluation is decoupled from controllers.
--   State transitions are preserved for auditability.
--   Background processing is isolated from request lifecycle.
--   Dashboard endpoints use caching to reduce DB load.
--   Rule configuration is externalized for flexibility.
-
-------------------------------------------------------------------------
-
-## Possible Improvements
-
--   Add authentication and role-based access.
--   Add filtering and pagination for alerts.
--   Make cron schedule configurable via environment variable.
--   Improve UI filtering (daily/weekly toggle for trends).
+GET /api/v1/dashboard/summary\
+GET /api/v1/dashboard/top-drivers\
+GET /api/v1/dashboard/trends\
+GET /api/v1/dashboard/recent-auto-closed\
+GET /api/v1/dashboard/rules
 
 ------------------------------------------------------------------------
 
 ## Conclusion
 
-This system demonstrates rule-based state management, background job
-execution, caching strategies, and structured frontend visualization.
-
-The emphasis is on maintainability, configurability, and clear
-separation of functionalities.
+This system demonstrates rule-based lifecycle management, background job
+execution, caching strategies, and structured dashboard visualization
+with clear trade-offs and complexity considerations.
