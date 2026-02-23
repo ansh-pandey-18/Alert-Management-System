@@ -2,201 +2,153 @@
 
 ## Overview
 
-This project implements a rule-driven alert lifecycle management system
-that handles creation, escalation, resolution, and automated closure of
-operational alerts.
+This project implements a rule-driven alert lifecycle management system that handles creation, escalation, resolution, and automated closure of operational alerts.
 
-The system is designed to simulate real-world operational monitoring
-scenarios such as overspeed events, compliance validation, and negative
-feedback tracking. It focuses on clear rule evaluation, lifecycle
-tracking, background processing, and analytical visualization.
+The idea is to simulate how real-world fleet monitoring or operations systems behave — where alerts are not just stored, but actively processed based on rules.
 
-------------------------------------------------------------------------
+It supports scenarios like overspeed events, compliance checks, and negative feedback tracking, with a focus on lifecycle tracking, rule evaluation, and visibility through a dashboard.
+
+---
 
 ## Tech Stack
 
 ### Backend
-
--   Node.js (ES Modules)
--   Express
--   MongoDB (Mongoose)
--   Redis (caching for dashboard aggregates)
--   node-cron (scheduled auto-close job)
+- Node.js (ES Modules)
+- Express
+- MongoDB (Mongoose)
+- Redis (used for caching dashboard data)
+- node-cron (for scheduled background jobs)
 
 ### Frontend
+- React
+- Chart.js
+- Axios
 
--   React
--   Chart.js
--   Axios
+---
 
-------------------------------------------------------------------------
+## Core Features
 
-## Core Capabilities
+### Alert Lifecycle
 
-### Alert Lifecycle Handling
-
-Alerts move through the following states:
+Each alert moves through a defined lifecycle:
 
 OPEN → ESCALATED → AUTO_CLOSED / RESOLVED
 
-All state transitions are recorded in alert history for auditability.
+Every transition is stored in a history log so the full lifecycle can be traced.
 
-### Escalation Engine
+---
 
-Escalation is triggered when: - Alerts of the same `driverId` and
-`sourceType` - Within a configured time window - Reach the defined
-threshold
+### Rule-Based Escalation
 
-Escalated alerts: - Change status to `ESCALATED` - Upgrade severity to
-`CRITICAL` - Record transition history
+Alerts are escalated when:
+- Same driverId + sourceType
+- Within a configured time window
+- Count crosses threshold
+
+On escalation:
+- Status → ESCALATED
+- Severity → CRITICAL
+- History updated
+
+Rules are defined in a JSON config, so behavior can be adjusted without changing code.
+
+---
 
 ### Auto-Close Engine
 
-A scheduled background job evaluates alerts periodically.
+A background job runs periodically and checks:
 
-Auto-close conditions: - Compliance rule (e.g.,
-`document_valid = true`) - Expiry window (e.g., auto-close after
-configured duration)
+- Compliance-based condition (e.g. document_valid = true)
+- Expiry window (alert becomes stale after some time)
 
-### Dashboard Features
+If conditions match, alert is moved to AUTO_CLOSED.
 
--   Severity summary
--   Top drivers by active alerts
--   Trend over time (Total, Escalated, Auto-Closed)
--   Recent auto-closed alerts
--   Alert drill-down (history + metadata)
--   Active rule configuration overview
+---
 
-------------------------------------------------------------------------
+### Dashboard
 
-## Architecture Overview
+The system exposes APIs for:
+- Severity summary
+- Top drivers
+- Trends over time
+- Recent auto-closed alerts
+- Active rule configuration
 
-The backend follows a layered structure:
+---
 
-Controllers → Services → Models
+## Architecture
 
--   Controllers manage request/response flow.
--   Services contain business logic (rule evaluation, escalation,
-    auto-close).
--   Models define schema and lifecycle tracking.
--   Redis is used selectively for aggregation-heavy endpoints.
+Routes → Controllers → Services → Models
 
-------------------------------------------------------------------------
+---
 
 ## Caching Strategy
 
-Redis caches: - Severity summary - Top drivers
+Redis is used for:
+- Severity summary
+- Top drivers
 
-Cache invalidation occurs whenever alert state changes.
+Cache is invalidated on alert updates.
 
-This reduces MongoDB aggregation overhead while maintaining consistency.
+---
 
-------------------------------------------------------------------------
+## Time & Space Complexity
 
-## Time Complexity Analysis
+- Alert Creation: O(1)
+- Escalation: O(log n)
+- Auto-Close Job: O(m)
+- Dashboard Aggregation: O(n)
 
-### Alert Creation
-
--   O(1) document insert
--   Escalation check: O(log n) due to indexed MongoDB query on driverId,
-    sourceType, and createdAt
-
-### Escalation Evaluation
-
--   Uses indexed count query within time window
--   Complexity: O(log n)
-
-### Auto-Close Job
-
--   Iterates over active alerts
--   Complexity: O(m) where m = number of OPEN + ESCALATED alerts
-
-### Dashboard Aggregations
-
--   MongoDB aggregation pipeline: O(n)
--   Optimized with Redis caching
-
-------------------------------------------------------------------------
+---
 
 ## Design Trade-offs
 
-1.  Cron-Based Processing vs Event-Driven\
-    Used cron for simplicity and clarity.\
-    Trade-off: Slight delay between condition satisfaction and state
-    transition.
+- Used cron instead of event-driven system (simpler, slight delay)
+- JSON rules instead of DB (flexible but not dynamic reload)
+- Partial caching (simpler invalidation)
+- Simplicity over full scalability
 
-2.  Redis Caching Scope\
-    Cached only aggregation-heavy endpoints to simplify invalidation
-    logic.
+---
 
-3.  JSON-Based Rule Configuration\
-    Externalized rules for flexibility.\
-    Trade-off: Requires consistent sourceType naming.
+## Failure Handling
 
-4.  Sequential Dashboard API Calls\
-    Chosen for simplicity and readability.\
-    Trade-off: Slight performance cost compared to Promise.all batching.
+- Centralized error handler
+- Logging with Winston
+- Redis fallback handling
 
-------------------------------------------------------------------------
-
-## Scalability Considerations
-
-For larger datasets, the following improvements could be applied:
-
--   Introduce message queues for event-driven processing
--   Add compound indexing for escalation queries
--   Batch auto-close processing
--   Paginate alert drill-down views
--   Implement authentication and role-based access control
-
-------------------------------------------------------------------------
+---
 
 ## How to Run
 
-### Backend
-
-Create `.env` in root:
-
-PORT=5000\
-MONGO_URI=your_mongodb_connection_string\
-REDIS_HOST=your_redis_host\
-REDIS_PORT=your_redis_port\
-REDIS_PASSWORD=your_redis_password
-
-Install dependencies:
-
-npm install
+Create .env file with:
+PORT=5000  
+MONGO_URI=your_mongodb_connection_string  
+REDIS_HOST=your_redis_host  
+REDIS_PORT=your_redis_port  
+REDIS_PASSWORD=your_redis_password  
 
 Run:
+npm install  
+npm run dev  
 
-npm run dev
-
-------------------------------------------------------------------------
-
-### Frontend
-
-cd client\
-npm install\
-npm start
-
-------------------------------------------------------------------------
+---
 
 ## API Endpoints
 
-POST /api/v1/alerts\
-GET /api/v1/alerts/:alertId\
-PATCH /api/v1/alerts/:alertId/resolve
+Alerts:
+POST /api/v1/alerts  
+GET /api/v1/alerts/:alertId  
+PATCH /api/v1/alerts/:alertId/resolve  
 
-GET /api/v1/dashboard/summary\
-GET /api/v1/dashboard/top-drivers\
-GET /api/v1/dashboard/trends\
-GET /api/v1/dashboard/recent-auto-closed\
-GET /api/v1/dashboard/rules
+Dashboard:
+GET /api/v1/dashboard/summary  
+GET /api/v1/dashboard/top-drivers  
+GET /api/v1/dashboard/trends  
+GET /api/v1/dashboard/recent-auto-closed  
+GET /api/v1/dashboard/rules  
 
-------------------------------------------------------------------------
+---
 
-## Conclusion
+## Final Notes
 
-This system demonstrates rule-based lifecycle management, background job
-execution, caching strategies, and structured dashboard visualization
-with clear trade-offs and complexity considerations.
+This project focuses on building a system that actively manages alerts using rules, background processing, and analytics.

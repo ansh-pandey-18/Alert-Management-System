@@ -31,6 +31,9 @@ app.use("/api/v1/alerts", alertRoutes);
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 app.use("/api/v1/dashboard", dashboardRoutes);
 
+import authRoutes from "./routes/authRoutes.js";
+app.use("/api/v1/auth", authRoutes);
+
 app.use(errorHandler);
 
 export default app;

@@ -27,7 +27,16 @@ const evaluateEscalation = async (alert) => {
     createdAt: { $gte: windowStart },
   });
 
-  if (countInWindow < rule.escalate_if_count) return;
+  const alreadyEscalated = await Alert.exists({
+  driverId: alert.driverId,
+  sourceType: alert.sourceType,
+  status: "ESCALATED",
+  createdAt: { $gte: windowStart }
+  });
+
+  //Escalation should trigger only once per threshold breach
+  if (countInWindow < rule.escalate_if_count || alreadyEscalated)
+  return;
 
   const previousState = alert.status;
 
