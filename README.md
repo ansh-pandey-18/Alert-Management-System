@@ -1,4 +1,4 @@
-# Alert Lifecycle Manager
+# Intelligent Alert Escalation And Resolution System
 
 ## Overview
 
