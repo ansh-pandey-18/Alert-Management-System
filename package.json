@@ -1,5 +1,5 @@
 {
-  "name": "intelligent-alert-system",
+  "name": "alert-management-system",
   "version": "1.0.0",
   "description": "Intelligent Alert escalation and resolution system",
   "main": "src/server.js",
